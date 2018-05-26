@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace PVCClient
+namespace PVCPipeClient
 {
     public class PVCServerInterface
     {
@@ -15,15 +15,18 @@ namespace PVCClient
         public Commit[] Branches { get; set; }
         HttpClient client;
 
-        public PVCServerInterface(Commit head)
+        public PVCServerInterface(Commit head, string uri)
         {
             client = new HttpClient();
             Head = head;
+            Uri = uri;
         }
 
-        public async void Push()
+        //public async void Pull
+
+        public async void Push(Commit commit)
         {
-            await client.PostAsync(Uri,new StringContent(JsonConvert.SerializeObject()));
+            await client.PostAsync(Uri,new StringContent(JsonConvert.SerializeObject(commit), Encoding.UTF8, "application/json"));
         }
     }
 }
