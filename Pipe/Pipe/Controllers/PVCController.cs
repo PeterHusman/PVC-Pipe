@@ -15,6 +15,36 @@ namespace Pipe.Controllers
     {
         SqlConnection connection = new SqlConnection("server=GMRMLTV; database=PVC; user=sa; password=GreatMinds110");
 
+        [HttpGet("{repo}/branches")]
+        public string GetBranches(string repo)
+        {
+            if (repo == null)
+            {
+                return "";//new string[] { };
+            }
+            connection.Open();
+            SqlCommand cmd = new SqlCommand("usp_GetRepoID", connection);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add(new SqlParameter("RepositoryName", repo));
+            SqlDataAdapter adapter = new SqlDataAdapter(cmd);
+            DataTable data = new DataTable();
+            adapter.Fill(data);
+            cmd.CommandText = "usp_GetBranchesOfRepo";
+            cmd.Parameters.Clear();
+            cmd.Parameters.Add(new SqlParameter("RepositoryID", (int)data.Rows[0][0]));
+            data.Clear();
+            adapter.Fill(data);
+            if (data.Rows.Count == 0)
+            {
+                return "";
+            }
+            Dictionary<string,int> output = new Dictionary<string,int>(data.Rows.Count);
+            for(int i = 0; i < data.Rows.Count; i++)
+            {
+                output.Add(data.Rows[i]["BranchName"].ToString(),(int)data.Rows[i]["CommitID"]);
+            }
+            return JsonConvert.SerializeObject(output);
+        }
 
         //Returns history of a branch
         // GET api/pipe/[repo]?branch=master&...
