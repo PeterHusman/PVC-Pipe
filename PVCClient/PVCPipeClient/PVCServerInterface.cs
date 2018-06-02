@@ -13,14 +13,14 @@ namespace PVCPipeClient
     {
         public string Origin { get; set; }
         public string Path { get; set; }
-        public Commit Head { get; set; }
-        public Commit[] Branches { get; set; }
+        //public Commit Head { get; set; }
+        //public Commit[] Branches { get; set; }
         HttpClient client;
 
-        public PVCServerInterface(Commit head, string origin)
+        public PVCServerInterface(/*Commit head,*/ string origin)
         {
             client = new HttpClient();
-            Head = head;
+            //Head = head;
             Origin = origin;
         }
 
@@ -48,10 +48,10 @@ namespace PVCPipeClient
             }
             File.WriteAllText($@"{path}\refs\HEAD", branches[branches.Keys.ToArray()[0]].ToString());
             Directory.CreateDirectory($@"{path}\commits");
-            getAllCommits(branches.Keys.ToArray());
+            GetAllCommits(branches.Keys.ToArray());
         }
 
-        async void getAllCommits(string[] branches)
+        async void GetAllCommits(string[] branches)
         {
             for (int i = 0; i < branches.Length; i++)
             {
@@ -65,9 +65,10 @@ namespace PVCPipeClient
             }
         }
 
-        public void DeleteBranch(string branch)
+        public async void DeleteBranch(string branch)
         {
             File.Delete($@"{Path}\.pvc\refs\branches\{branch}");
+            await client.DeleteAsync($"{Origin}/{branch}");
         }
 
         public async void Push()

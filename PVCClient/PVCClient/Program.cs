@@ -10,7 +10,8 @@ namespace PVCClient
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("PVC is a work-in-progress rudimentary VCS. Commands:\nWIP commit\nWIP log\nWIP push\nWIP pull\nWIP checkout");
+            Console.WriteLine("PVC is a work-in-progress rudimentary VCS. Commands:\nWIP clone\nWIP commit\nWIP log\nWIP push\nWIP pull\nWIP checkout\nPlease enter the path to the folder containing the repository.");
+            string path = Console.ReadLine();
             
         }
     }

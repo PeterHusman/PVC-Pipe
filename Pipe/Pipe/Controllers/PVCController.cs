@@ -38,10 +38,10 @@ namespace Pipe.Controllers
             {
                 return "";
             }
-            Dictionary<string,int> output = new Dictionary<string,int>(data.Rows.Count);
-            for(int i = 0; i < data.Rows.Count; i++)
+            Dictionary<string, int> output = new Dictionary<string, int>(data.Rows.Count);
+            for (int i = 0; i < data.Rows.Count; i++)
             {
-                output.Add(data.Rows[i]["BranchName"].ToString(),(int)data.Rows[i]["CommitID"]);
+                output.Add(data.Rows[i]["BranchName"].ToString(), (int)data.Rows[i]["CommitID"]);
             }
             return JsonConvert.SerializeObject(output);
         }
@@ -68,7 +68,7 @@ namespace Pipe.Controllers
             cmd.Parameters.Add(new SqlParameter("BranchName", branch));
             data.Clear();
             adapter.Fill(data);
-            if(data.Rows.Count == 0)
+            if (data.Rows.Count == 0)
             {
                 return "";
             }
@@ -86,27 +86,17 @@ namespace Pipe.Controllers
         Commit[] commitHistoryFromDataBaseEntry(DataTable table)
         {
             Commit[] commits = new Commit[table.Rows.Count];
-            for(int i = 0; i < commits.Length;i++)
+            for (int i = 0; i < commits.Length; i++)
             {
-                commits[i] = new Commit((string)table.Rows[i]["TextDiffs"],(string)table.Rows[i]["Message"],(string)table.Rows[i]["Author"],(string)table.Rows[i]["Committer"],(int)table.Rows[i]["ParentID"]);
+                commits[i] = new Commit((string)table.Rows[i]["TextDiffs"], (string)table.Rows[i]["Message"], (string)table.Rows[i]["Author"], (string)table.Rows[i]["Committer"], (int)table.Rows[i]["ParentID"]);
             }
             return commits;
         }
 
-
-
-        // GET api/pipe/5
-        [HttpGet("{id}/{id2}")]
-        public string Get(int id, int id2)
-        {
-            return id + " " + id2;
-        }
-
-        // POST api/values
         [HttpPost]
         public void Post([FromBody]Commit[] commits, [FromBody]string branch)
         {
-
+            
         }
 
         // PUT api/values/5
@@ -115,10 +105,41 @@ namespace Pipe.Controllers
         {
         }
 
-        // DELETE api/values/5
-        [HttpDelete("{id}")]
-        public void Delete(int id)
+        // DELETE api/pipe/repo/branch
+        [HttpDelete("{repo}/{branch}")]
+        public void DeleteBranch(string repo, string branch)
         {
+            SqlCommand cmd = new SqlCommand("usp_DeleteBranch", connection);
+            int repoID = GetRepoID(repo);            
+            cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
+            cmd.Parameters.Add(new SqlParameter("BranchName", branch));
+            cmd.ExecuteNonQuery();
+        }
+
+        private int GetRepoID(string repo)
+        {
+            connection.Open();
+            SqlCommand cmd = new SqlCommand("usp_GetRepoID", connection);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add(new SqlParameter("RepositoryName", repo));
+            SqlDataAdapter adapter = new SqlDataAdapter(cmd);
+            DataTable data = new DataTable();
+            adapter.Fill(data);
+            cmd.Parameters.Clear();
+            int retVal = (int)data.Rows[0][0];
+            data.Clear();
+            return retVal;
+        }
+
+        //VERY DANGEROUS!!!! USE AT YOUR OWN RISK!!!
+        // DELETE api/pipe/repo
+        [HttpDelete("{repo}")]
+        public void DeleteRepo(string repo)
+        {
+            SqlCommand cmd = new SqlCommand("usp_DeleteRepo", connection);            
+            int repoID = GetRepoID(repo);            
+            cmd.Parameters.AddWithValue("RepositoryID", repoID);
+            cmd.ExecuteNonQuery();
         }
     }
 }
