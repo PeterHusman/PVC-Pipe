@@ -11,8 +11,40 @@ namespace PVCPipeClient
 {
     public class PVCServerInterface
     {
+
+        class AllDiffs
+        {
+            public string[] Directories;
+            public Dictionary<string, Diff[]> FilesAndDiffs;
+        }
+
+        class Diff
+        {
+            public int Position;
+            public int NumberToRemove;
+            public string ContentToAdd;
+        }
+
+        Diff[] GetDiffs(string left, string right)
+        {
+            List<Diff> diffs = new List<Diff>();
+            //Try checking each character of right against left until there is a mismatch. Then maybe recursive call on shortened file?
+            return diffs.ToArray();
+        }
+
+        string MergeDiffs(string left, Diff[] diffs)
+        {
+            for(int i = diffs.Length - 1; i >= 0; i--)
+            {
+                left = left.Remove(diffs[0].Position, diffs[0].NumberToRemove).Insert(diffs[0].Position, diffs[0].ContentToAdd);
+            }
+            return left;
+        }
+
         public string Origin { get; set; }
         public string Path { get; set; }
+        //public Func<string, string, string> GetDiffs { get; set; }
+        //public Func<string, string, string> MergeDiffs { get; set; }
         //public Commit Head { get; set; }
         //public Commit[] Branches { get; set; }
         HttpClient client;
@@ -34,6 +66,17 @@ namespace PVCPipeClient
             File.WriteAllText($@"{Path}\.pvc\refs\HEAD", branch);
         }
 
+        public void Checkout(string branch)
+        {
+            File.WriteAllText($@"{Path}\.pvc\refs\HEAD", branch);
+            GetUpdatedFiles(int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branch}")));
+        }
+
+        public void GetUpdatedFiles(int latestCommit)
+        {
+            
+        }
+
         public async void Clone()
         {
             string path = Path + @"\.pvc";
@@ -51,8 +94,9 @@ namespace PVCPipeClient
             GetAllCommits(branches.Keys.ToArray());
         }
 
-        async void GetAllCommits(string[] branches)
+        async /*Task<Dictionary<int, Commit>>*/void GetAllCommits(string[] branches)
         {
+            // Dictionary<int, Commit> allCommits = new Dictionary<int, Commit>();
             for (int i = 0; i < branches.Length; i++)
             {
                 Commit[] commits = JsonConvert.DeserializeObject<Commit[]>(await client.GetStringAsync($"{Origin}?branch={branches[i]}"));
@@ -60,15 +104,34 @@ namespace PVCPipeClient
                 {
                     string path2 = $@"{Path}\.pvc\commits\{commits[j].GetHashCode() % 100}";
                     Directory.CreateDirectory(path2);
-                    File.WriteAllText($@"{path2}\{commits[j].GetHashCode()/100}",JsonConvert.SerializeObject(commits[j]));
+                    File.WriteAllText($@"{path2}\{commits[j].GetHashCode() / 100}", JsonConvert.SerializeObject(commits[j]));
+                    // allCommits.Add(commits[j].GetHashCode(),commits[j]);
                 }
             }
+            //return allCommits;
         }
 
-        public async void DeleteBranch(string branch)
+        public void Commit(Commit commit)
+        {
+            string path = $@"{Path}\.pvc\commits\{commit.GetHashCode() % 100}";
+            Directory.CreateDirectory(path);
+            File.WriteAllText($@"{path}\{commit.GetHashCode() / 100}", JsonConvert.SerializeObject(commit));
+        }
+
+        public void Commit(string author, string committer, string diffs, string message, int parentId)
+        {
+            Commit(new Commit(diffs, message, author, committer, new int[] { parentId, 0 }));
+        }
+
+        public void Commit()
+        {
+
+        }
+
+        public void DeleteBranch(string branch)
         {
             File.Delete($@"{Path}\.pvc\refs\branches\{branch}");
-            await client.DeleteAsync($"{Origin}/{branch}");
+            //await client.DeleteAsync($"{Origin}/{branch}");
         }
 
         public async void Push()

@@ -110,7 +110,8 @@ namespace Pipe.Controllers
         public void DeleteBranch(string repo, string branch)
         {
             SqlCommand cmd = new SqlCommand("usp_DeleteBranch", connection);
-            int repoID = GetRepoID(repo);            
+            int repoID = GetRepoID(repo);
+            cmd.CommandType = CommandType.StoredProcedure;
             cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
             cmd.Parameters.Add(new SqlParameter("BranchName", branch));
             cmd.ExecuteNonQuery();
@@ -136,8 +137,9 @@ namespace Pipe.Controllers
         [HttpDelete("{repo}")]
         public void DeleteRepo(string repo)
         {
-            SqlCommand cmd = new SqlCommand("usp_DeleteRepo", connection);            
-            int repoID = GetRepoID(repo);            
+            int repoID = GetRepoID(repo);
+            SqlCommand cmd = new SqlCommand("usp_DeleteRepo", connection);
+            cmd.CommandType = CommandType.StoredProcedure;
             cmd.Parameters.AddWithValue("RepositoryID", repoID);
             cmd.ExecuteNonQuery();
         }
