@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace PVCPipeClient
 {
-    public class Commit
+    class Commit
     {
         public string Diffs { get; set; }
 
-        public int[] Parents { get; set; }
+        public int Parent { get; set; }
 
         public string Message { get; set; }
 
@@ -18,13 +18,13 @@ namespace PVCPipeClient
 
         public string Committer { get; set; }
 
-        public Commit(string diffs, string message, string author, string committer, int[] parents)
+        public Commit(string diffs, string message, string author, string committer, int parent)
         {
             Diffs = diffs;
             Message = message;
             Author = author;
             Committer = committer;
-            Parents = parents;
+            Parent = parent;
         }
     }
 }
