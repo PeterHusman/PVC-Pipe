@@ -93,18 +93,64 @@ namespace Pipe.Controllers
             return commits;
         }
 
-        [HttpPost]
-        public void Post([FromBody]Commit[] commits, [FromBody]string branch)
+        //[HttpPost]
+        //public void Post([FromBody]Commit[] commits, [FromBody]string branch)
+        //{
+
+        //}
+
+        [HttpPost("{repo}/{branch}")]
+        public void CreateBranch(string repo, string branch, int commitID)
         {
-            
+            int repoID = GetRepoID(repo);
+            SqlCommand cmd = new SqlCommand("usp_CreateBranch", connection);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
+            cmd.Parameters.Add(new SqlParameter("BranchName", branch));
+            cmd.Parameters.Add(new SqlParameter("CommitID", commitID));
+            cmd.ExecuteNonQuery();
         }
 
-
-        //TODO: Push
-        // PUT api/values/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody]string value)
+        [HttpPost("{repo}")]
+        public void CreateRepo(string repo)
         {
+            connection.Open();
+            SqlCommand cmd = new SqlCommand("usp_CreateRepoWOID", connection);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add(new SqlParameter("Name", repo));
+            cmd.ExecuteNonQuery();
+        }
+
+        [HttpPut("{repo}/{branch}")]
+        public void PushBranch(string repo, string branch, [FromBody]Commit[] commits)
+        {
+            int repoID = GetRepoID(repo);
+            SqlCommand cmd = new SqlCommand("usp_AddCommit", connection);
+            cmd.CommandType = CommandType.StoredProcedure;
+            for (int i = 0; i < commits.Length; i++)
+            {
+                cmd.Parameters.Clear();
+                cmd.Parameters.Add(new SqlParameter("CommitID", commits[i].GetHashCode()));
+                cmd.Parameters.Add(new SqlParameter("Message", commits[i].Message));
+                cmd.Parameters.Add(new SqlParameter("ParentID", commits[i].Parent));
+                cmd.Parameters.Add(new SqlParameter("Author", commits[i].Author));
+                cmd.Parameters.Add(new SqlParameter("Committer", commits[i].Committer));
+                cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
+                cmd.Parameters.Add(new SqlParameter("TextDiffs", commits[i].Diffs));
+                cmd.ExecuteNonQuery();
+            }
+
+            cmd.CommandText = "usp_UpdateBranch";
+            cmd.Parameters.Clear();
+            cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
+            cmd.Parameters.Add(new SqlParameter("BranchName", branch));
+            cmd.Parameters.Add(new SqlParameter("CommitID", commits[commits.Length - 1].GetHashCode()));
+            int rows = cmd.ExecuteNonQuery();
+            if (rows <= 0)
+            {
+                cmd.CommandText = "usp_CreateBranch";
+                cmd.ExecuteNonQuery();
+            }
         }
 
         // DELETE api/pipe/repo/branch
