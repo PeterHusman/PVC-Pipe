@@ -53,5 +53,11 @@
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PVCPipeClient\PVCPipeClient.csproj">
+      <Project>{3671D7CA-1C5E-469D-9266-8E3617330B7B}</Project>
+      <Name>PVCPipeClient</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

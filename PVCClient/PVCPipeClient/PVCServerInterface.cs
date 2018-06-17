@@ -51,7 +51,7 @@ namespace PVCPipeClient
             string[] leftLines = left.Split('\n');
             string[] rightLines = right.Split('\n');
             int biggerLength = leftLines.Length > rightLines.Length ? leftLines.Length : rightLines.Length;
-            for(int i = 0; i < biggerLength; i++)
+            for (int i = 0; i < biggerLength; i++)
             {
                 string strLeft = i < leftLines.Length ? leftLines[i] : null;
                 string strRight = i < rightLines.Length ? rightLines[i] : null;
@@ -63,7 +63,7 @@ namespace PVCPipeClient
             int cumulativeLength(string[] array, int numOfItemsToSum)
             {
                 int cumLen = 0;
-                for(int i = 0; i < numOfItemsToSum; i++)
+                for (int i = 0; i < numOfItemsToSum; i++)
                 {
                     cumLen += array[i].Length + 1;
                 }
@@ -111,7 +111,7 @@ namespace PVCPipeClient
         /// <returns></returns>
         public async Task<bool> Pull()
         {
-            if(UncommittedChanges())
+            if (UncommittedChanges())
             {
                 return false;
             }
@@ -130,11 +130,11 @@ namespace PVCPipeClient
                     break;
                 }
             }
-            if(allValid)
+            if (allValid)
             {
-                Directory.Move(path2,$@"{Path}\.pvcTemp");
+                Directory.Move(path2, $@"{Path}\.pvcTemp");
                 Directory.Delete($@"{Path}\.pvc");
-                Directory.Move($@"{Path}\.pvcTemp",$@"{Path}\.pvc");
+                Directory.Move($@"{Path}\.pvcTemp", $@"{Path}\.pvc");
                 Checkout(branch);
                 return true;
             }
@@ -205,6 +205,16 @@ namespace PVCPipeClient
             return MergeDiffs(GetUpdatedFiles(lastCommit.Parent), JsonConvert.DeserializeObject<Diff[]>(lastCommit.Diffs));
         }
 
+        public void CreateBranch(string name)
+        {
+            CreateBranch(name, int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{File.ReadAllText($@"{Path}\.pvc\refs\HEAD")}")));
+        }
+
+        public void CreateBranch(string name, int commitID)
+        {
+            File.WriteAllText($@"{Path}\.pvc\refs\branches\{name}", commitID.ToString());
+        }
+
         public async void Clone(string orig)
         {
             Clone(Path, orig, true, @"\.pvc");
@@ -217,17 +227,20 @@ namespace PVCPipeClient
             File.WriteAllText(path2 + @"\origin", orig);
             Directory.CreateDirectory($@"{path2}\refs");
             Directory.CreateDirectory($@"{path2}\refs\branches");
-            Dictionary<string, int> branches = (Dictionary<string, int>)JsonConvert.DeserializeObject(await client.GetStringAsync(origin + "/branches"));
+            var received = await client.GetAsync(origin + "/branches");
+            Dictionary<string, int> branches = JsonConvert.DeserializeObject< Dictionary<string, int>>(received.Content.ReadAsStringAsync().Result);
             foreach (string branch in branches.Keys)
             {
                 File.WriteAllText($@"{path2}\refs\branches\{branch}", branches[branch].ToString());
             }
-            File.WriteAllText($@"{path2}\refs\HEAD", branches[branches.Keys.ToArray()[0]].ToString());
+            File.WriteAllText($@"{path2}\refs\HEAD", branches.Keys.ToArray()[0]);
             Directory.CreateDirectory($@"{path2}\commits");
+
             if (loadCommits)
             {
                 GetAllCommits(path, branches.Keys.ToArray());
             }
+
         }
 
         async /*Task<Dictionary<int, Commit>>*/void GetAllCommits(string path, string[] branches)
@@ -235,7 +248,8 @@ namespace PVCPipeClient
             // Dictionary<int, Commit> allCommits = new Dictionary<int, Commit>();
             for (int i = 0; i < branches.Length; i++)
             {
-                Commit[] commits = JsonConvert.DeserializeObject<Commit[]>(await client.GetStringAsync($"{origin}?branch={branches[i]}"));
+                var received = await client.GetAsync($"{origin}?branch={branches[i]}");
+            Commit[] commits = JsonConvert.DeserializeObject<Commit[]>(received.Content.ReadAsStringAsync().Result);
                 for (int j = 0; j < commits.Length; j++)
                 {
                     string path2 = $@"{path}\.pvc\commits\{commits[j].GetHashCode() % 100}";
@@ -269,8 +283,11 @@ namespace PVCPipeClient
             int head = GetHead();
             Commit commitToCommit = new Commit(JsonConvert.SerializeObject(GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(LoadFiles(Path, Path.Length, new string[] { $@"{Path}\.pvc" })))), message, author, committer, head);
             Commit(commitToCommit);
-            string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
-            File.WriteAllText($@"{Path}\.pvc\refs\branches\{branch}", commitToCommit.GetHashCode().ToString());
+            if (File.Exists($@"{Path}\.pvc\refs\HEAD"))
+            {
+                string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
+                File.WriteAllText($@"{Path}\.pvc\refs\branches\{branch}", commitToCommit.GetHashCode().ToString());
+            }
         }
 
         public void DeleteBranch(string branch)
@@ -332,27 +349,27 @@ namespace PVCPipeClient
         {
             Commit cmit = GetCommit(commit1, path1);
             Commit cmit2Strt = GetCommit(commit2, path2);
-            while(true)
+            while (true)
             {
                 Commit cmit2 = cmit2Strt;
                 while (true)
                 {
-                    if(cmit2.GetHashCode() == cmit.GetHashCode())
+                    if (cmit2.GetHashCode() == cmit.GetHashCode())
                     {
                         return cmit2.GetHashCode();
                     }
-                    if(cmit2.Parent == 0)
+                    if (cmit2.Parent == 0)
                     {
                         break;
                     }
                     cmit2 = GetCommit(cmit2.Parent, path2);
-                } 
-                if(cmit.Parent == 0)
+                }
+                if (cmit.Parent == 0)
                 {
                     break;
                 }
                 cmit = GetCommit(cmit.Parent, path1);
-            } 
+            }
             return 0;
         }
 
@@ -364,7 +381,9 @@ namespace PVCPipeClient
         //TODO
         public async Task<bool> Push()
         {
-            if(UncommittedChanges())
+
+
+            if (UncommittedChanges())
             {
                 return false;
             }
@@ -383,8 +402,8 @@ namespace PVCPipeClient
                     break;
                 }
             }
-            
-            if(allValid)
+
+            if (allValid)
             {
                 foreach (string path in Directory.EnumerateDirectories($@"{Path}\.pvc\refs\branches"))
                 {
@@ -394,14 +413,14 @@ namespace PVCPipeClient
                     int commonAncestor = CommonAncestor(branch1, branch2, Path + @"\.pvc", path2);
                     int commit = int.Parse(File.ReadAllText(path));
                     List<Commit> commits = new List<Commit>();
-                    while(commit != commonAncestor)
+                    while (commit != commonAncestor)
                     {
-                        Commit commitInCommitForm = JsonConvert.DeserializeObject<Commit>(File.ReadAllText($@"{Path}\.pvc\commits\{commit%100}\{commit/100}"));
+                        Commit commitInCommitForm = JsonConvert.DeserializeObject<Commit>(File.ReadAllText($@"{Path}\.pvc\commits\{commit % 100}\{commit / 100}"));
                         commits.Add(commitInCommitForm);
                         commit = commitInCommitForm.Parent;
                     }
                     commits.Reverse();
-                    await client.PutAsync($"{origin}/{branchCheck}",new StringContent(JsonConvert.SerializeObject(commits),Encoding.UTF8, "application/json"));
+                    await client.PutAsync($"{origin}/{branchCheck}", new StringContent(JsonConvert.SerializeObject(commits), Encoding.UTF8, "application/json"));
                 }
             }
             Directory.Delete(path2, true);

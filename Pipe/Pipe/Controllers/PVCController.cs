@@ -103,7 +103,7 @@ namespace Pipe.Controllers
         public void CreateBranch(string repo, string branch, int commitID)
         {
             int repoID = GetRepoID(repo);
-            SqlCommand cmd = new SqlCommand("usp_CreateBranch", connection);
+            SqlCommand cmd = new SqlCommand("usp_AddBranch", connection);
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
             cmd.Parameters.Add(new SqlParameter("BranchName", branch));
@@ -115,10 +115,29 @@ namespace Pipe.Controllers
         public void CreateRepo(string repo)
         {
             connection.Open();
-            SqlCommand cmd = new SqlCommand("usp_CreateRepoWOID", connection);
+            SqlCommand cmd = new SqlCommand("usp_AddRepoWOID", connection);
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.Parameters.Add(new SqlParameter("Name", repo));
             cmd.ExecuteNonQuery();
+            cmd.CommandText = "usp_AddCommit";
+            cmd.Parameters.Clear();
+            int repoID = GetRepoID(repo, false);
+            int commitID = new Random().Next(1, int.MaxValue);
+            cmd.Parameters.Add(new SqlParameter("CommitID", commitID));
+            cmd.Parameters.Add(new SqlParameter("Message", "Initial commit for repository " + repo));
+            cmd.Parameters.Add(new SqlParameter("ParentID", 0));
+            cmd.Parameters.Add(new SqlParameter("Author", "Auto-generated"));
+            cmd.Parameters.Add(new SqlParameter("Committer", "Auto-generated"));
+            cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
+            cmd.Parameters.Add(new SqlParameter("TextDiffs", "[]"));
+            cmd.ExecuteNonQuery();
+            cmd.Parameters.Clear();
+            cmd.CommandText = "usp_AddBranch";
+            cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
+            cmd.Parameters.Add(new SqlParameter("BranchName", "master"));
+            cmd.Parameters.Add(new SqlParameter("CommitID", commitID));
+            cmd.ExecuteNonQuery();
+
         }
 
         [HttpPut("{repo}/{branch}")]
@@ -165,9 +184,10 @@ namespace Pipe.Controllers
             cmd.ExecuteNonQuery();
         }
 
-        private int GetRepoID(string repo)
+        private int GetRepoID(string repo, bool openConnection = true)
         {
-            connection.Open();
+            if (openConnection)
+            { connection.Open(); }
             SqlCommand cmd = new SqlCommand("usp_GetRepoID", connection);
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.Parameters.Add(new SqlParameter("RepositoryName", repo));
