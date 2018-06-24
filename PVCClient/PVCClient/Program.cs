@@ -29,35 +29,56 @@ namespace PVCClient
             string[] parameters = new string[1];
             string input = "";
             Dictionary<string, string> help = new Dictionary<string, string> { { "clone", "clone ORIGIN" }, { "pull", "pull" } };
+            var cmds2 = new Dictionary<string, Func<Task>>();
             var cmds = new Dictionary<string, Func<Task>>
             {
-                ["clone"] = async () => await interf.Clone(parameters[1]),
-                ["pull"] = async () => await interf.Pull(),
+                ["clone"] = async () => { await interf.Clone(parameters[1]); await ReDraw(path, cmds2); },
+                ["pull"] = async () => Console.WriteLine((await interf.Pull()).ToString()),
                 ["checkout"] = async () => await interf.Checkout(parameters[1]),
                 ["commit"] = async () => await interf.Commit(input.Remove(0, parameters[0].Length + parameters[1].Length + parameters[2].Length + 3), parameters[1], parameters[2]),
                 ["push"] = async () => await interf.Push(),
                 ["branch"] = async () => { if (parameters.Length > 2) { await interf.CreateBranch(parameters[1], int.Parse(parameters[2])); } else { await interf.CreateBranch(parameters[1]); } },
                 ["help"] = async () => await Task.Run(() => Console.WriteLine(help[parameters[1]]))
             };
+            cmds2 = cmds;
+            Console.Clear();
+            Console.WriteLine($"File path: {path}\nOrigin: {(File.Exists($@"{path}\.pvc\origin") ? File.ReadAllText($@"{path}\.pvc\origin") : "none")}");
+            Console.WriteLine("Commands:");
+            foreach (string cmd in cmds.Keys.ToArray())
+            {
+                Console.WriteLine("\t" + cmd);
+            }
+            
+
             while (true)
             {
-                Console.Clear();
-                Console.WriteLine(path);
-                Console.WriteLine("Commands:");
-                foreach (string cmd in cmds.Keys.ToArray())
-                {
-                    Console.WriteLine("\t" + cmd);
-                }
                 input = Console.ReadLine();
                 parameters = input.Split(' ');
                 try
                 {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
                     await Task.Run(() => cmds[parameters[0]]());
+                    Console.ForegroundColor = ConsoleColor.Gray;
                 }
                 catch(Exception e)
                 {
-                    ;
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"Error: {e.Message}\nLocation: {e.StackTrace.Split('\n')[0]}");
+                    Console.ForegroundColor = ConsoleColor.Gray;
                 }
+            }
+
+
+            
+        }
+        public static async Task ReDraw(string path, Dictionary<string, Func<Task>> cmds)
+        {
+            Console.Clear();
+            Console.WriteLine($"File path: {path}\nOrigin: {(File.Exists($@"{path}\.pvc\origin") ? File.ReadAllText($@"{path}\.pvc\origin") : "none")}");
+            Console.WriteLine("Commands:");
+            foreach (string cmd in cmds.Keys.ToArray())
+            {
+                Console.WriteLine("\t" + cmd);
             }
         }
     }

@@ -13,6 +13,36 @@ namespace Pipe.Controllers
     [Route("api/pipe")]
     public class PVCController : Controller
     {
+        class Folder
+        {
+            public string Path;
+            public Folder[] Folders;
+            public FileObj[] Files;
+        }
+        class FileObj
+        {
+            public string Path;
+            public string Contents;
+
+            public FileObj(string path, string contents)
+            {
+                Path = path;
+                Contents = contents;
+            }
+        }
+        class Diff
+        {
+            public int Position;
+            public int NumberToRemove;
+            public string ContentToAdd;
+            public Diff(int pos, int numToRem, string toAdd)
+            {
+                Position = pos;
+                NumberToRemove = numToRem;
+                ContentToAdd = toAdd;
+            }
+        }
+
         SqlConnection connection = new SqlConnection("server=GMRMLTV; database=PVC; user=sa; password=GreatMinds110");
 
         [HttpGet("{repo}/branches")]
@@ -129,7 +159,7 @@ namespace Pipe.Controllers
             cmd.Parameters.Add(new SqlParameter("Author", "Auto-generated"));
             cmd.Parameters.Add(new SqlParameter("Committer", "Auto-generated"));
             cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
-            cmd.Parameters.Add(new SqlParameter("TextDiffs", "[]"));
+            cmd.Parameters.Add(new SqlParameter("TextDiffs", JsonConvert.SerializeObject(new Diff[] { new Diff(0, 0, JsonConvert.SerializeObject(new Folder { Path = "", Folders = new Folder[0], Files = new FileObj[0] })) })));
             cmd.ExecuteNonQuery();
             cmd.Parameters.Clear();
             cmd.CommandText = "usp_AddBranch";

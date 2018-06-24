@@ -106,16 +106,23 @@ namespace PVCPipeClient
             Path = path;
         }
 
+        public enum PullResult
+        {
+            Success = 0,
+            UncommittedChanges,
+            OutOfDate
+        }
+
 
         /// <summary>
         /// WIP
         /// </summary>
         /// <returns></returns>
-        public async Task<bool> Pull()
+        public async Task<PullResult> Pull()
         {
             if (await UncommittedChanges())
             {
-                return false;
+                return PullResult.UncommittedChanges;
             }
 
             string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
@@ -139,10 +146,10 @@ namespace PVCPipeClient
                 Directory.Delete($@"{Path}\.pvc", true);
                 Directory.Move($@"{Path}\.pvcTemp", $@"{Path}\.pvc");
                 await Checkout(branch);
-                return true;
+                return PullResult.Success;
             }
             Directory.Delete(path2, true);
-            return false;
+            return PullResult.OutOfDate;
         }
 
         public async Task Checkout(string branch)
@@ -197,15 +204,12 @@ namespace PVCPipeClient
                 folder.Files[i] = new FileObj(filePaths[i].Remove(0, charsToRemoveFromPath), File.ReadAllText(filePaths[i]));
             }
 
-            string[] folderPaths = Directory.GetDirectories(path);
-            folder.Folders = new Folder[filePaths.Length];
+            var folderPaths = Directory.GetDirectories(path).Except(excludedDirs).ToArray();
+            folder.Folders = new Folder[folderPaths.Length];
 
-            for (int i = 0; i < folderPaths.Length - 1; i++)
+            for (int i = 0; i < folderPaths.Length; i++)
             {
-                if (!excludedDirs.Contains(folderPaths[i]))
-                {
-                    folder.Folders[i] = await LoadFiles(folderPaths[i], charsToRemoveFromPath, excludedDirs);
-                }
+                folder.Folders[i] = await LoadFiles(folderPaths[i], charsToRemoveFromPath, excludedDirs);
             }
 
             return folder;
@@ -300,7 +304,7 @@ namespace PVCPipeClient
         public async Task Commit(string message, string author, string committer)
         {
             int head = await GetHead();
-            Commit commitToCommit = new Commit(JsonConvert.SerializeObject(GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(LoadFiles(Path, Path.Length, new string[] { $@"{Path}\.pvc" })))), message, author, committer, head);
+            Commit commitToCommit = new Commit(JsonConvert.SerializeObject(await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(LoadFiles(Path, Path.Length, new string[] { $@"{Path}\.pvc" })))), message, author, committer, head);
             await Commit(commitToCommit);
             string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
             File.WriteAllText($@"{Path}\.pvc\refs\branches\{branch}", commitToCommit.GetHashCode().ToString());
