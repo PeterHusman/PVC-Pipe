@@ -83,12 +83,12 @@ namespace Pipe.Controllers
             return JsonConvert.SerializeObject(commitHistoryFromDataBaseEntry(data));//new string[] { data.Rows[0]["Message"].ToString() };//new string[] { "value1", "value2", repo };
         }
 
-        Commit[] commitHistoryFromDataBaseEntry(DataTable table)
+        Dictionary<int, Commit> commitHistoryFromDataBaseEntry(DataTable table)
         {
-            Commit[] commits = new Commit[table.Rows.Count];
-            for (int i = 0; i < commits.Length; i++)
+            Dictionary<int, Commit> commits = new Dictionary<int, Commit>();
+            for (int i = 0; i < table.Rows.Count; i++)
             {
-                commits[i] = new Commit((string)table.Rows[i]["TextDiffs"], (string)table.Rows[i]["Message"], (string)table.Rows[i]["Author"], (string)table.Rows[i]["Committer"], (int)table.Rows[i]["ParentID"]);
+                commits.Add((int)table.Rows[i]["CommitID"], new Commit((string)table.Rows[i]["TextDiffs"], (string)table.Rows[i]["Message"], (string)table.Rows[i]["Author"], (string)table.Rows[i]["Committer"], (int)table.Rows[i]["ParentID"]));
             }
             return commits;
         }
@@ -141,15 +141,16 @@ namespace Pipe.Controllers
         }
 
         [HttpPut("{repo}/{branch}")]
-        public void PushBranch(string repo, string branch, [FromBody]Commit[] commits)
+        public void PushBranch(string repo, string branch, [FromBody]Dictionary<int, Commit> commitDictionary)
         {
             int repoID = GetRepoID(repo);
             SqlCommand cmd = new SqlCommand("usp_AddCommit", connection);
             cmd.CommandType = CommandType.StoredProcedure;
+            Commit[] commits = commitDictionary.Values.ToArray();
             for (int i = 0; i < commits.Length; i++)
             {
                 cmd.Parameters.Clear();
-                cmd.Parameters.Add(new SqlParameter("CommitID", commits[i].GetHashCode()));
+                cmd.Parameters.Add(new SqlParameter("CommitID", commitDictionary.Keys.ToArray()[i]));
                 cmd.Parameters.Add(new SqlParameter("Message", commits[i].Message));
                 cmd.Parameters.Add(new SqlParameter("ParentID", commits[i].Parent));
                 cmd.Parameters.Add(new SqlParameter("Author", commits[i].Author));
@@ -163,7 +164,7 @@ namespace Pipe.Controllers
             cmd.Parameters.Clear();
             cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
             cmd.Parameters.Add(new SqlParameter("BranchName", branch));
-            cmd.Parameters.Add(new SqlParameter("CommitID", commits[commits.Length - 1].GetHashCode()));
+            cmd.Parameters.Add(new SqlParameter("CommitID", commits[commits.Length -1].GetHashCode()));
             int rows = cmd.ExecuteNonQuery();
             if (rows <= 0)
             {
