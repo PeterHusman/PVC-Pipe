@@ -28,18 +28,37 @@ namespace PVCClient
             PVCServerInterface interf = new PVCServerInterface(path);
             string[] parameters = new string[1];
             string input = "";
-            Dictionary<string, string> help = new Dictionary<string, string> { { "clone", "clone ORIGIN" }, { "pull", "pull" } };
+            Dictionary<string, string> help = new Dictionary<string, string> {
+                ["clone"]   = "clone ORIGIN",
+                ["pull"]    = "pull",
+                ["checkout"]= "checkout BRANCH",
+                ["commit"]  = "commit AUTHOR COMMITTER M E S S A G E",
+                ["push"]    = "push",
+                ["branch"]  = "branch BRANCHNAME",
+                ["help"]    = "help <COMMAND>",
+                ["status"]  = "(WIP) status"
+            };
             var cmds2 = new Dictionary<string, Func<Task>>();
             var cmds = new Dictionary<string, Func<Task>>
             {
-                ["clone"] = async () => { await interf.Clone(parameters[1]); await ReDraw(path, cmds2); },
-                ["pull"] = async () => Console.WriteLine((await interf.Pull()).ToString()),
+                ["clone"] = async () => { await interf.Clone(parameters[1]);/* await ReDraw(path, cmds2);*/ },
+                ["pull"] = async () => Console.WriteLine((await interf.Pull()).ToString().Replace('_', ' ')),
                 ["checkout"] = async () => await interf.Checkout(parameters[1]),
                 ["commit"] = async () => await interf.Commit(input.Remove(0, parameters[0].Length + parameters[1].Length + parameters[2].Length + 3), parameters[1], parameters[2]),
                 ["push"] = async () => await interf.Push(),
                 ["branch"] = async () => { if (parameters.Length > 2) { await interf.CreateBranch(parameters[1], int.Parse(parameters[2])); } else { await interf.CreateBranch(parameters[1]); } },
-                ["help"] = async () => await Task.Run(() => Console.WriteLine(help[parameters[1]]))
+                ["help"] = async () => await Task.Run(() => { if (parameters.Length > 1) { Console.WriteLine(help[parameters[1]]); } else { foreach (string s in help.Keys.ToArray()) { Console.WriteLine($"{s}{repeatChar(' ', 20 - s.Length)}{help[s]}"); } } }),
+                ["status"] = async() => Console.WriteLine((await interf.GetStatus()).ToString().Replace('_', ' '))
             };
+            string repeatChar(char chr, int num)
+            {
+                StringBuilder s = new StringBuilder();
+                for(int i = 0; i < num; i++)
+                {
+                    s.Append(chr);
+                }
+                return s.ToString();
+            }
             cmds2 = cmds;
             Console.Clear();
             Console.WriteLine($"File path: {path}\nOrigin: {(File.Exists($@"{path}\.pvc\origin") ? File.ReadAllText($@"{path}\.pvc\origin") : "none")}");
@@ -58,6 +77,7 @@ namespace PVCClient
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     await Task.Run(() => cmds[parameters[0]]());
+                    Console.WriteLine("Finished");
                     Console.ForegroundColor = ConsoleColor.Gray;
                 }
                 catch(Exception e)

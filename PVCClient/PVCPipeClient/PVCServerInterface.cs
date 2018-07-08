@@ -109,8 +109,8 @@ namespace PVCPipeClient
         public enum PullResult
         {
             Success = 0,
-            UncommittedChanges,
-            OutOfDate
+            Uncommitted_Changes,
+            Merge_Conflict
         }
 
 
@@ -122,12 +122,12 @@ namespace PVCPipeClient
         {
             if (await UncommittedChanges())
             {
-                return PullResult.UncommittedChanges;
+                return PullResult.Uncommitted_Changes;
             }
 
             string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
             string path2 = Path + @"\.pvc\tempRepoClone";
-            await Clone(path2, origin, false, "");
+            await Clone(path2, origin, true, "");
             bool allValid = true;
             foreach (string path in Directory.EnumerateDirectories($@"{Path}\.pvc\refs\branches"))
             {
@@ -149,8 +149,29 @@ namespace PVCPipeClient
                 return PullResult.Success;
             }
             Directory.Delete(path2, true);
-            return PullResult.OutOfDate;
+            return PullResult.Merge_Conflict;
         }
+
+        public enum Status
+        {
+            Uncommitted_Changes,
+            Out_of_Date,
+            Up_to_Date
+        }
+
+        public async Task<Status> GetStatus()
+        {
+            if (await UncommittedChanges())
+            {
+                return Status.Uncommitted_Changes;
+            }
+            else if (await CanPush(File.ReadAllText($@"{Path}\.pvc\refs\HEAD")))
+            {
+                return Status.Up_to_Date;
+            }
+            return Status.Out_of_Date;
+        }
+        
 
         public async Task Checkout(string branch)
         {
@@ -256,12 +277,12 @@ namespace PVCPipeClient
 
                 if (loadCommits)
                 {
-                    await GetAllCommits(path, branches.Keys.ToArray());
+                    await GetAllCommits(path, branches.Keys.ToArray(), dataAdditional);
                 }
             });
         }
 
-        async /*Task<Dictionary<int, Commit>>*/ Task GetAllCommits(string path, string[] branches)
+        async /*Task<Dictionary<int, Commit>>*/ Task GetAllCommits(string path, string[] branches, string extraString = @"\.pvc")
         {
             // Dictionary<int, Commit> allCommits = new Dictionary<int, Commit>();
             for (int i = 0; i < branches.Length; i++)
@@ -270,7 +291,7 @@ namespace PVCPipeClient
                 Dictionary<int, Commit> commits = JsonConvert.DeserializeObject<Dictionary<int, Commit>>(received.Content.ReadAsStringAsync().Result);
                 for (int j = 0; j < commits.Keys.Count; j++)
                 {
-                    string path2 = $@"{path}\.pvc\commits\{commits.Keys.ToArray()[j] % 100}";
+                    string path2 = $@"{path}{extraString}\commits\{commits.Keys.ToArray()[j] % 100}";
                     Directory.CreateDirectory(path2);
                     File.WriteAllText($@"{path2}\{commits.Keys.ToArray()[j] / 100}", JsonConvert.SerializeObject(commits.Values.ToArray()[j]));
                     // allCommits.Add(commits[j].GetHashCode(),commits[j]);
@@ -304,7 +325,7 @@ namespace PVCPipeClient
         public async Task Commit(string message, string author, string committer)
         {
             int head = await GetHead();
-            Commit commitToCommit = new Commit(JsonConvert.SerializeObject(await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(LoadFiles(Path, Path.Length, new string[] { $@"{Path}\.pvc" })))), message, author, committer, head);
+            Commit commitToCommit = new Commit(JsonConvert.SerializeObject(await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, new string[] { $@"{Path}\.pvc" })))), message, author, committer, head);
             await Commit(commitToCommit);
             string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
             File.WriteAllText($@"{Path}\.pvc\refs\branches\{branch}", commitToCommit.GetHashCode().ToString());
