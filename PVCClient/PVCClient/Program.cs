@@ -28,15 +28,19 @@ namespace PVCClient
             PVCServerInterface interf = new PVCServerInterface(path);
             string[] parameters = new string[1];
             string input = "";
-            Dictionary<string, string> help = new Dictionary<string, string> {
-                ["clone"]   = "clone ORIGIN",
-                ["pull"]    = "pull",
-                ["checkout"]= "checkout BRANCH",
-                ["commit"]  = "commit AUTHOR COMMITTER M E S S A G E",
-                ["push"]    = "push",
-                ["branch"]  = "branch BRANCHNAME",
-                ["help"]    = "help <COMMAND>",
-                ["status"]  = "(WIP) status"
+            Dictionary<string, string> help = new Dictionary<string, string>
+            {
+                ["clone"] = "clone ORIGIN",
+                ["pull"] = "pull",
+                ["checkout"] = "checkout BRANCH",
+                ["commit"] = "commit AUTHOR COMMITTER M E S S A G E",
+                ["push"] = "push",
+                ["branch"] = "branch BRANCHNAME",
+                ["help"] = "help <COMMAND>",
+                ["status"] = "(WIP) status <BRANCH>",
+                ["log"] = "log <NUMBER>",
+                ["ignore"] = "ignore SUBPATH1 SUBPATH2 ...",
+                ["unignore"] = "unignore SUBPATH1 SUBPATH2 ..."
             };
             var cmds2 = new Dictionary<string, Func<Task>>();
             var cmds = new Dictionary<string, Func<Task>>
@@ -47,13 +51,16 @@ namespace PVCClient
                 ["commit"] = async () => await interf.Commit(input.Remove(0, parameters[0].Length + parameters[1].Length + parameters[2].Length + 3), parameters[1], parameters[2]),
                 ["push"] = async () => await interf.Push(),
                 ["branch"] = async () => { if (parameters.Length > 2) { await interf.CreateBranch(parameters[1], int.Parse(parameters[2])); } else { await interf.CreateBranch(parameters[1]); } },
-                ["help"] = async () => await Task.Run(() => { if (parameters.Length > 1) { Console.WriteLine(help[parameters[1]]); } else { foreach (string s in help.Keys.ToArray()) { Console.WriteLine($"{s}{repeatChar(' ', 20 - s.Length)}{help[s]}"); } } }),
-                ["status"] = async() => Console.WriteLine((await interf.GetStatus()).ToString().Replace('_', ' '))
+                ["help"] = async () => await Task.Run(() => { if (parameters.Length > 1 && help.ContainsKey(parameters[1])) { Console.WriteLine(help[parameters[1]]); } else { foreach (string s in help.Keys.ToArray()) { Console.WriteLine($"{s}{repeatChar(' ', 20 - s.Length)}{help[s]}"); } } }),
+                ["status"] = async () => Console.WriteLine((await interf.GetStatus(parameters.Length > 1 ? parameters[1] : File.ReadAllText($@"{path}\.pvc\refs\HEAD"))).ToString().Replace('_', ' ')),
+                ["log"] = async () => { string[] output = (parameters.Length > 1 ? await interf.Log(int.Parse(parameters[1])) : await interf.Log()); for (int i = 0; i < output.Length; i++) { if (output[i] != null) { Console.WriteLine(output[i]); } } },
+                ["ignore"] = async () => await interf.IgnorePaths(input.Remove(0, 6).Split(new char[] { ' ' },StringSplitOptions.RemoveEmptyEntries)),
+                ["unignore"] = async () => await interf.UnignorePaths(input.Remove(0, 6).Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
             };
             string repeatChar(char chr, int num)
             {
                 StringBuilder s = new StringBuilder();
-                for(int i = 0; i < num; i++)
+                for (int i = 0; i < num; i++)
                 {
                     s.Append(chr);
                 }
@@ -67,7 +74,7 @@ namespace PVCClient
             {
                 Console.WriteLine("\t" + cmd);
             }
-            
+
 
             while (true)
             {
@@ -76,20 +83,50 @@ namespace PVCClient
                 try
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                    await Task.Run(() => cmds[parameters[0]]());
+                    Exception thro = null;
+                    await Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await cmds[parameters[0]]();
+                        }
+                        catch (Exception e)
+                        {
+                            thro = e;
+                        }
+                    });
+                    if (thro != null)
+                    {
+                        Fail(thro);
+                    }
+                    //await Task.Run(() => cmds[parameters[0]]);
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
                     Console.WriteLine("Finished");
                     Console.ForegroundColor = ConsoleColor.Gray;
                 }
-                catch(Exception e)
+                catch (Exception e)
+                {
+                    Fail(e);
+                }
+                void Fail(Exception e)
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine($"Error: {e.Message}\nLocation: {e.StackTrace.Split('\n')[0]}");
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    if (help.ContainsKey(parameters[0]))
+                    {
+                        Console.WriteLine($"Proper command usage: {help[parameters[0]]}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Unsupported command");
+                    }
                     Console.ForegroundColor = ConsoleColor.Gray;
                 }
             }
 
 
-            
+
         }
         public static async Task ReDraw(string path, Dictionary<string, Func<Task>> cmds)
         {

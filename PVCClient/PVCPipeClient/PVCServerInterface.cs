@@ -93,6 +93,34 @@ namespace PVCPipeClient
         }
 
         public string Path { get; set; }
+
+        public string[] IgnoredPaths
+        {
+            get
+            {
+                if (!File.Exists($@"{Path}\.pvcignore"))
+                {
+                    return new string[] { @"\.pvc" };
+                }
+                string[] igPaths = File.ReadAllLines($@"{Path}\.pvcignore");
+                string[] igPaths2 = new string[igPaths.Length + 1];
+                igPaths.CopyTo(igPaths2, 1);
+                igPaths2[0] = @"\.pvc";
+                return igPaths2;
+            }
+        }
+
+        public async Task IgnorePaths(string[] pathsToIgnore)
+        {
+            File.AppendAllLines($@"{Path}\.pvcignore", pathsToIgnore);
+        }
+        public async Task UnignorePaths(string[] pathsToUnignore)
+        {
+            if (File.Exists($@"{Path}\.pvcignore"))
+            {
+                File.WriteAllLines($@"{Path}\.pvcignore", File.ReadAllLines($@"{Path}\.pvcignore").Except(pathsToUnignore));
+            }
+        }
         //public Func<string, string, string> GetDiffs { get; set; }
         //public Func<string, string, string> MergeDiffs { get; set; }
         //public Commit Head { get; set; }
@@ -104,6 +132,43 @@ namespace PVCPipeClient
             client = new HttpClient();
             //Head = head;
             Path = path;
+        }
+
+        public async Task<string[]> Log()
+        {
+            List<string> ret = new List<string>();
+            int head = await GetHead();
+            string path2 = Path + "\\.pvc";
+            Commit temp = GetCommit(head, path2);
+            while (true)
+            {
+                ret.Add(temp.Message);
+                if (temp.Parent == 0)
+                {
+                    break;
+                }
+                temp = GetCommit(temp.Parent, path2);
+            }
+            return ret.ToArray();
+        }
+
+        public async Task<string[]> Log(int number)
+        {
+            string[] ret = new string[number];
+            int head = await GetHead();
+            string path2 = Path + "\\.pvc";
+            Commit temp = GetCommit(head, path2);
+            for (int i = 0; i < number; i++)
+            {
+                ret[i] = temp.Message;
+                if (temp.Parent == 0)
+                {
+                    break;
+                }
+                temp = GetCommit(temp.Parent, path2);
+            }
+            return ret;
+
         }
 
         public enum PullResult
@@ -155,23 +220,49 @@ namespace PVCPipeClient
         public enum Status
         {
             Uncommitted_Changes,
-            Out_of_Date,
+            Ahead_of_Origin,
+            Behind_Origin,
             Up_to_Date
         }
 
-        public async Task<Status> GetStatus()
+        public async Task<Status> GetStatus(string branch)
         {
             if (await UncommittedChanges())
             {
                 return Status.Uncommitted_Changes;
             }
-            else if (await CanPush(File.ReadAllText($@"{Path}\.pvc\refs\HEAD")))
+            else
             {
-                return Status.Up_to_Date;
+                string path2 = Path + @"\.pvc\tempRepoClone";
+                await Clone(path2, origin, true, "");
+                int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branch}"));
+                if(!File.Exists($@"{path2}\refs\branches\{branch}"))
+                {
+                    return Status.Ahead_of_Origin;
+                }
+                int branch2 = int.Parse(File.ReadAllText($@"{path2}\refs\branches\{branch}"));
+                int ca = CommonAncestor(branch1, branch2, Path + @"\.pvc", path2);
+                Directory.Delete(path2, true);
+                if (branch1 == branch2)
+                {
+                    return Status.Up_to_Date;
+                }
+                else if(ca == branch1)
+                {
+                    return Status.Behind_Origin;
+                }
+                else//(ca == branch2)
+                {
+                    return Status.Ahead_of_Origin;
+                }
             }
-            return Status.Out_of_Date;
+            //else if (await CanPush(File.ReadAllText($@"{Path}\.pvc\refs\HEAD")))
+            //{
+            //    return Status.Up_to_Date;
+            //}
+            //return Status.Out_of_Date;
         }
-        
+
 
         public async Task Checkout(string branch)
         {
@@ -208,29 +299,37 @@ namespace PVCPipeClient
 
         async Task<Folder> LoadFiles()
         {
-            return await LoadFiles(Path, Path.Length, new string[] { $@"{Path}\.pvc" });
+            return await LoadFiles(Path, Path.Length, IgnoredPaths);
         }
 
         async Task<Folder> LoadFiles(string path, int charsToRemoveFromPath, string[] excludedDirs)
         {
+            string[] firstCharsRemoved(string[] start, int charsToRem)
+            {
+                for(int i = 0; i < start.Length; i++)
+                {
+                    start[i] = start[i].Remove(0, charsToRem);
+                }
+                return start;
+            }
             Folder folder = new Folder()
             {
                 Path = path.Remove(0, charsToRemoveFromPath)
             };
 
-            string[] filePaths = Directory.GetFiles(path);
+            string[] filePaths = firstCharsRemoved(Directory.GetFiles(path),charsToRemoveFromPath).Except(excludedDirs).ToArray();
             folder.Files = new FileObj[filePaths.Length];
             for (int i = 0; i < filePaths.Length; i++)
             {
-                folder.Files[i] = new FileObj(filePaths[i].Remove(0, charsToRemoveFromPath), File.ReadAllText(filePaths[i]));
+                folder.Files[i] = new FileObj(filePaths[i], File.ReadAllText($"{path}\\{filePaths[i]}"));
             }
 
-            var folderPaths = Directory.GetDirectories(path).Except(excludedDirs).ToArray();
+            var folderPaths = firstCharsRemoved(Directory.GetDirectories(path), charsToRemoveFromPath).Except(excludedDirs).ToArray();
             folder.Folders = new Folder[folderPaths.Length];
 
             for (int i = 0; i < folderPaths.Length; i++)
             {
-                folder.Folders[i] = await LoadFiles(folderPaths[i], charsToRemoveFromPath, excludedDirs);
+                folder.Folders[i] = await LoadFiles($"{path}\\{folderPaths[i]}", charsToRemoveFromPath, excludedDirs);
             }
 
             return folder;
@@ -325,7 +424,7 @@ namespace PVCPipeClient
         public async Task Commit(string message, string author, string committer)
         {
             int head = await GetHead();
-            Commit commitToCommit = new Commit(JsonConvert.SerializeObject(await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, new string[] { $@"{Path}\.pvc" })))), message, author, committer, head);
+            Commit commitToCommit = new Commit(JsonConvert.SerializeObject(await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, IgnoredPaths)))), message, author, committer, head);
             await Commit(commitToCommit);
             string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
             File.WriteAllText($@"{Path}\.pvc\refs\branches\{branch}", commitToCommit.GetHashCode().ToString());
@@ -342,7 +441,7 @@ namespace PVCPipeClient
         async Task<bool> UncommittedChanges()
         {
             int head = await GetHead();
-            return (await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, new string[] { $@"{Path}\.pvc" })))).Length != 0;
+            return (await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, IgnoredPaths)))).Length != 0;
         }
 
 
@@ -353,7 +452,7 @@ namespace PVCPipeClient
         async Task<bool> CanPush(string branch)
         {
             string path2 = Path + @"\.pvc\tempRepoClone";
-            await Clone(path2, origin, false, "");
+            await Clone(path2, origin, true, "");
             bool canPush = false;
             int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branch}"));
             int branch2 = int.Parse(File.ReadAllText($@"{path2}\refs\branches\{branch}"));
@@ -369,7 +468,7 @@ namespace PVCPipeClient
         async Task<bool> CanPull(string branch)
         {
             string path2 = Path + @"\.pvc\tempRepoClone";
-            await Clone(path2, origin, false, "");
+            await Clone(path2, origin, true, "");
             bool canPull = false;
             int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branch}"));
             int branch2 = int.Parse(File.ReadAllText($@"{path2}\refs\branches\{branch}"));
