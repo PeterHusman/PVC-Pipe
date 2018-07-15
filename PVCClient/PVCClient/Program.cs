@@ -37,10 +37,10 @@ namespace PVCClient
                 ["push"] = "push",
                 ["branch"] = "branch BRANCHNAME",
                 ["help"] = "help <COMMAND>",
-                ["status"] = "(WIP) status <BRANCH>",
+                ["status"] = "status <BRANCH>",
                 ["log"] = "log <NUMBER>",
-                ["ignore"] = "ignore SUBPATH1 SUBPATH2 ...",
-                ["unignore"] = "unignore SUBPATH1 SUBPATH2 ..."
+                ["ignore"] = "ignore <SUBPATH1 SUBPATH2 ...>",
+                ["unignore"] = "unignore SUBPATH1 SUBPATH2 ...",
             };
             var cmds2 = new Dictionary<string, Func<Task>>();
             var cmds = new Dictionary<string, Func<Task>>
@@ -54,7 +54,7 @@ namespace PVCClient
                 ["help"] = async () => await Task.Run(() => { if (parameters.Length > 1 && help.ContainsKey(parameters[1])) { Console.WriteLine(help[parameters[1]]); } else { foreach (string s in help.Keys.ToArray()) { Console.WriteLine($"{s}{repeatChar(' ', 20 - s.Length)}{help[s]}"); } } }),
                 ["status"] = async () => Console.WriteLine((await interf.GetStatus(parameters.Length > 1 ? parameters[1] : File.ReadAllText($@"{path}\.pvc\refs\HEAD"))).ToString().Replace('_', ' ')),
                 ["log"] = async () => { string[] output = (parameters.Length > 1 ? await interf.Log(int.Parse(parameters[1])) : await interf.Log()); for (int i = 0; i < output.Length; i++) { if (output[i] != null) { Console.WriteLine(output[i]); } } },
-                ["ignore"] = async () => await interf.IgnorePaths(input.Remove(0, 6).Split(new char[] { ' ' },StringSplitOptions.RemoveEmptyEntries)),
+                ["ignore"] = async () => { if (parameters.Length > 1) { await interf.IgnorePaths(input.Remove(0, 6).Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)); } else { Console.WriteLine("Ignored subpaths:"); foreach (string s in interf.IgnoredPaths) { Console.WriteLine(s); } } },
                 ["unignore"] = async () => await interf.UnignorePaths(input.Remove(0, 6).Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
             };
             string repeatChar(char chr, int num)

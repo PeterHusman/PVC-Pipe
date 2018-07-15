@@ -302,8 +302,12 @@ namespace PVCPipeClient
             return await LoadFiles(Path, Path.Length, IgnoredPaths);
         }
 
-        async Task<Folder> LoadFiles(string path, int charsToRemoveFromPath, string[] excludedDirs)
+        async Task<Folder> LoadFiles(string path, int charsToRemoveFromPath, string[] excludedDirs, string rootPath = "")
         {
+            if(rootPath == "")
+            {
+                rootPath = path;
+            }
             string[] firstCharsRemoved(string[] start, int charsToRem)
             {
                 for(int i = 0; i < start.Length; i++)
@@ -316,12 +320,11 @@ namespace PVCPipeClient
             {
                 Path = path.Remove(0, charsToRemoveFromPath)
             };
-
             string[] filePaths = firstCharsRemoved(Directory.GetFiles(path),charsToRemoveFromPath).Except(excludedDirs).ToArray();
             folder.Files = new FileObj[filePaths.Length];
             for (int i = 0; i < filePaths.Length; i++)
             {
-                folder.Files[i] = new FileObj(filePaths[i], File.ReadAllText($"{path}\\{filePaths[i]}"));
+                folder.Files[i] = new FileObj(filePaths[i], File.ReadAllText($"{rootPath}\\{filePaths[i]}"));
             }
 
             var folderPaths = firstCharsRemoved(Directory.GetDirectories(path), charsToRemoveFromPath).Except(excludedDirs).ToArray();
@@ -329,7 +332,7 @@ namespace PVCPipeClient
 
             for (int i = 0; i < folderPaths.Length; i++)
             {
-                folder.Folders[i] = await LoadFiles($"{path}\\{folderPaths[i]}", charsToRemoveFromPath, excludedDirs);
+                folder.Folders[i] = await LoadFiles($"{rootPath}{folderPaths[i]}", charsToRemoveFromPath, excludedDirs,rootPath);
             }
 
             return folder;
@@ -519,9 +522,8 @@ namespace PVCPipeClient
         }
 
         //TODO
-        public async Task<bool> Push()
+        public async Task<bool> Push()//string branch = "")
         {
-
 
             if (await UncommittedChanges())
             {
@@ -529,9 +531,9 @@ namespace PVCPipeClient
             }
             string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
             string path2 = Path + @"\.pvc\tempRepoClone";
-            await Clone(path2, origin, false, "");
+            await Clone(path2, origin, true, "");
             bool allValid = true;
-            foreach (string path in Directory.EnumerateDirectories($@"{Path}\.pvc\refs\branches"))
+            foreach (string path in Directory.EnumerateFiles($@"{Path}\.pvc\refs\branches"))
             {
                 string branchCheck = path.Remove(0, Path.Length + 19);
                 int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branchCheck}"));
@@ -545,7 +547,7 @@ namespace PVCPipeClient
 
             if (allValid)
             {
-                foreach (string path in Directory.EnumerateDirectories($@"{Path}\.pvc\refs\branches"))
+                foreach (string path in Directory.EnumerateFiles($@"{Path}\.pvc\refs\branches"))
                 {
                     string branchCheck = path.Remove(0, Path.Length + 19);
                     int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branchCheck}"));

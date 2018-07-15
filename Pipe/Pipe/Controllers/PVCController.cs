@@ -5,6 +5,7 @@ using System.Data.SqlClient;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Pipe.Models;
 
@@ -13,6 +14,17 @@ namespace Pipe.Controllers
     [Route("api/pipe")]
     public class PVCController : Controller
     {
+        IConfiguration configuration;
+        SqlConnection connection;
+
+        public PVCController(IConfiguration configuration, INotifier notifier)
+        {
+            this.configuration = configuration;
+            connection = new SqlConnection(configuration.GetConnectionString("Dev"));
+            
+            notifier.SendMail();
+        }
+
         class Folder
         {
             public string Path;
@@ -42,9 +54,7 @@ namespace Pipe.Controllers
                 ContentToAdd = toAdd;
             }
         }
-
-        SqlConnection connection = new SqlConnection("server=GMRMLTV; database=PVC; user=sa; password=GreatMinds110");
-
+        
         [HttpGet("{repo}/branches")]
         public string GetBranches(string repo)
         {
@@ -176,18 +186,27 @@ namespace Pipe.Controllers
             int repoID = GetRepoID(repo);
             SqlCommand cmd = new SqlCommand("usp_AddCommit", connection);
             cmd.CommandType = CommandType.StoredProcedure;
+            DataTable table = new DataTable();
+            SqlDataAdapter adapter = new SqlDataAdapter(cmd);
             Commit[] commits = commitDictionary.Values.ToArray();
             for (int i = 0; i < commits.Length; i++)
             {
                 cmd.Parameters.Clear();
                 cmd.Parameters.Add(new SqlParameter("CommitID", commitDictionary.Keys.ToArray()[i]));
-                cmd.Parameters.Add(new SqlParameter("Message", commits[i].Message));
-                cmd.Parameters.Add(new SqlParameter("ParentID", commits[i].Parent));
-                cmd.Parameters.Add(new SqlParameter("Author", commits[i].Author));
-                cmd.Parameters.Add(new SqlParameter("Committer", commits[i].Committer));
-                cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
-                cmd.Parameters.Add(new SqlParameter("TextDiffs", commits[i].Diffs));
-                cmd.ExecuteNonQuery();
+                cmd.CommandText = "usp_GetCommitByID";
+                table.Clear();
+                adapter.Fill(table);
+                if (table.Rows.Count <= 0)
+                {
+                    cmd.CommandText = "usp_AddCommit";
+                    cmd.Parameters.Add(new SqlParameter("Message", commits[i].Message));
+                    cmd.Parameters.Add(new SqlParameter("ParentID", commits[i].Parent));
+                    cmd.Parameters.Add(new SqlParameter("Author", commits[i].Author));
+                    cmd.Parameters.Add(new SqlParameter("Committer", commits[i].Committer));
+                    cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
+                    cmd.Parameters.Add(new SqlParameter("TextDiffs", commits[i].Diffs));
+                    cmd.ExecuteNonQuery();
+                }
             }
 
             cmd.CommandText = "usp_UpdateBranch";
