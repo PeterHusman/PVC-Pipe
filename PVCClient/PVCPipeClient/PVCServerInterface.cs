@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
@@ -110,6 +111,33 @@ namespace PVCPipeClient
             }
         }
 
+        public string IgnoredRegex
+        {
+            get
+            {
+                return IgnoredPaths.Length > 1 ? (IgnoredPaths[1].StartsWith("R: ") ? IgnoredPaths[1].Remove(0, 3) : "") : "";
+            }
+        }
+        public async Task SetIgnoredRegex(string regexToIgnore)
+        {
+            if (IgnoredPaths.Length > 1 && IgnoredPaths[1].StartsWith("R: "))
+            {
+                string[] linesa = File.ReadAllLines($@"{Path}\.pvcignore");
+                linesa[0] = "R: " + regexToIgnore;
+                File.WriteAllLines($@"{Path}\.pvcignore", linesa);
+                return;
+            }
+            if (!File.Exists($@"{Path}\.pvcignore"))
+            {
+                File.WriteAllText($@"{Path}\.pvcignore", "R: " + regexToIgnore);
+                return;
+            }
+            string[] lines = File.ReadAllLines($@"{Path}\.pvcignore");
+            string[] lines2 = new string[lines.Length + 1];
+            lines.CopyTo(lines2, 1);
+            lines2[0] = "R: " + regexToIgnore;
+            File.WriteAllLines($@"{Path}\.pvcignore", lines2);
+        }
         public async Task IgnorePaths(string[] pathsToIgnore)
         {
             File.AppendAllLines($@"{Path}\.pvcignore", pathsToIgnore);
@@ -236,7 +264,7 @@ namespace PVCPipeClient
                 string path2 = Path + @"\.pvc\tempRepoClone";
                 await Clone(path2, origin, true, "");
                 int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branch}"));
-                if(!File.Exists($@"{path2}\refs\branches\{branch}"))
+                if (!File.Exists($@"{path2}\refs\branches\{branch}"))
                 {
                     return Status.Ahead_of_Origin;
                 }
@@ -247,7 +275,7 @@ namespace PVCPipeClient
                 {
                     return Status.Up_to_Date;
                 }
-                else if(ca == branch1)
+                else if (ca == branch1)
                 {
                     return Status.Behind_Origin;
                 }
@@ -264,15 +292,19 @@ namespace PVCPipeClient
         }
 
 
-        public async Task Checkout(string branch)
+        public async Task<bool> Checkout(string branch)
         {
+            if(!File.Exists($@"{Path}\.pvc\refs\branches\{branch}"))
+            {
+                return false;
+            }
             await Task.Run(async () =>
             {
                 foreach (string path in Directory.EnumerateDirectories(Path))
                 {
                     if (path != Path + @"\.pvc")
                     {
-                        Directory.Delete(path);
+                        Directory.Delete(path,true);
                     }
                 }
                 foreach (string path in Directory.EnumerateFiles(Path))
@@ -282,6 +314,7 @@ namespace PVCPipeClient
                 File.WriteAllText($@"{Path}\.pvc\refs\HEAD", branch);
                 await SetFiles(JsonConvert.DeserializeObject<Folder>(GetUpdatedFiles(int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branch}")))), Path);
             });
+            return true;
         }
 
         async Task SetFiles(Folder folder, string rootPath)
@@ -299,40 +332,57 @@ namespace PVCPipeClient
 
         async Task<Folder> LoadFiles()
         {
-            return await LoadFiles(Path, Path.Length, IgnoredPaths);
+            return await LoadFiles(Path, Path.Length, IgnoredPaths, IgnoredRegex);
         }
 
-        async Task<Folder> LoadFiles(string path, int charsToRemoveFromPath, string[] excludedDirs, string rootPath = "")
+        async Task<Folder> LoadFiles(string path, int charsToRemoveFromPath, string[] excludedDirs, string regex, string rootPath = "")
         {
-            if(rootPath == "")
+            if (rootPath == "")
             {
                 rootPath = path;
             }
             string[] firstCharsRemoved(string[] start, int charsToRem)
             {
-                for(int i = 0; i < start.Length; i++)
+                for (int i = 0; i < start.Length; i++)
                 {
                     start[i] = start[i].Remove(0, charsToRem);
                 }
                 return start;
             }
+            string[] exceptRegex(string[] array, string regExpression)
+            {
+                if (regExpression == "")
+                {
+                    return array;
+                }
+                Regex regexp = new Regex(regExpression);
+                var temp = array.ToList();
+                for (int i = 0; i < array.Length; i++)
+                {
+                    if (regexp.IsMatch(array[i]))
+                    {
+                        temp.Remove(array[i]);
+                    }
+                }
+                return temp.ToArray();
+            }
             Folder folder = new Folder()
             {
                 Path = path.Remove(0, charsToRemoveFromPath)
             };
-            string[] filePaths = firstCharsRemoved(Directory.GetFiles(path),charsToRemoveFromPath).Except(excludedDirs).ToArray();
+            string[] filePaths = exceptRegex(firstCharsRemoved(Directory.GetFiles(path), charsToRemoveFromPath).Except(excludedDirs).ToArray(), regex);
             folder.Files = new FileObj[filePaths.Length];
             for (int i = 0; i < filePaths.Length; i++)
             {
                 folder.Files[i] = new FileObj(filePaths[i], File.ReadAllText($"{rootPath}\\{filePaths[i]}"));
             }
-
-            var folderPaths = firstCharsRemoved(Directory.GetDirectories(path), charsToRemoveFromPath).Except(excludedDirs).ToArray();
+            Regex regextest = new Regex(regex);
+            var folderPaths = exceptRegex(firstCharsRemoved(Directory.GetDirectories(path), charsToRemoveFromPath).Except(excludedDirs).ToArray(), regex);
             folder.Folders = new Folder[folderPaths.Length];
 
             for (int i = 0; i < folderPaths.Length; i++)
             {
-                folder.Folders[i] = await LoadFiles($"{rootPath}{folderPaths[i]}", charsToRemoveFromPath, excludedDirs,rootPath);
+                folder.Folders[i] = await LoadFiles($"{rootPath}{folderPaths[i]}", charsToRemoveFromPath, excludedDirs, regex, rootPath);
             }
 
             return folder;
@@ -427,7 +477,7 @@ namespace PVCPipeClient
         public async Task Commit(string message, string author, string committer)
         {
             int head = await GetHead();
-            Commit commitToCommit = new Commit(JsonConvert.SerializeObject(await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, IgnoredPaths)))), message, author, committer, head);
+            Commit commitToCommit = new Commit(JsonConvert.SerializeObject(await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, IgnoredPaths, IgnoredRegex)))), message, author, committer, head);
             await Commit(commitToCommit);
             string branch = File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
             File.WriteAllText($@"{Path}\.pvc\refs\branches\{branch}", commitToCommit.GetHashCode().ToString());
@@ -444,7 +494,7 @@ namespace PVCPipeClient
         async Task<bool> UncommittedChanges()
         {
             int head = await GetHead();
-            return (await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, IgnoredPaths)))).Length != 0;
+            return (await GetDiffs(GetUpdatedFiles(head), JsonConvert.SerializeObject(await LoadFiles(Path, Path.Length, IgnoredPaths, IgnoredRegex)))).Length != 0;
         }
 
 
@@ -537,11 +587,14 @@ namespace PVCPipeClient
             {
                 string branchCheck = path.Remove(0, Path.Length + 19);
                 int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branchCheck}"));
-                int branch2 = int.Parse(File.ReadAllText($@"{path2}\refs\branches\{branchCheck}"));
-                if (CommonAncestor(branch1, branch2, Path + @"\.pvc", path2) == branch2)
+                if (File.Exists($@"{path2}\refs\branches\{branchCheck}"))
                 {
-                    allValid = false;
-                    break;
+                    int branch2 = int.Parse(File.ReadAllText($@"{path2}\refs\branches\{branchCheck}"));
+                    if (CommonAncestor(branch1, branch2, Path + @"\.pvc", path2) == branch2)
+                    {
+                        allValid = false;
+                        break;
+                    }
                 }
             }
 
@@ -551,8 +604,16 @@ namespace PVCPipeClient
                 {
                     string branchCheck = path.Remove(0, Path.Length + 19);
                     int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branchCheck}"));
-                    int branch2 = int.Parse(File.ReadAllText($@"{path2}\refs\branches\{branchCheck}"));
-                    int commonAncestor = CommonAncestor(branch1, branch2, Path + @"\.pvc", path2);
+                    int commonAncestor;
+                    if (File.Exists($@"{path2}\refs\branches\{branchCheck}"))
+                    {
+                        int branch2 = int.Parse(File.ReadAllText($@"{path2}\refs\branches\{branchCheck}"));
+                        commonAncestor = CommonAncestor(branch1, branch2, Path + @"\.pvc", path2);
+                    }
+                    else
+                    {
+                        commonAncestor = 0;
+                    }
                     int commit = int.Parse(File.ReadAllText(path));
                     Dictionary<int, Commit> commits = new Dictionary<int, Commit>();
                     while (commit != commonAncestor)

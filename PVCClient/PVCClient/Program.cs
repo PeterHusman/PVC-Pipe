@@ -35,12 +35,13 @@ namespace PVCClient
                 ["checkout"] = "checkout BRANCH",
                 ["commit"] = "commit AUTHOR COMMITTER M E S S A G E",
                 ["push"] = "push",
-                ["branch"] = "branch BRANCHNAME",
+                ["branch"] = "branch <BRANCHNAME> <COMMITID>",
                 ["help"] = "help <COMMAND>",
                 ["status"] = "status <BRANCH>",
                 ["log"] = "log <NUMBER>",
                 ["ignore"] = "ignore <SUBPATH1 SUBPATH2 ...>",
                 ["unignore"] = "unignore SUBPATH1 SUBPATH2 ...",
+                ["ignoreR"] = "ignoreR <R E G E X>"
             };
             var cmds2 = new Dictionary<string, Func<Task>>();
             var cmds = new Dictionary<string, Func<Task>>
@@ -50,12 +51,13 @@ namespace PVCClient
                 ["checkout"] = async () => await interf.Checkout(parameters[1]),
                 ["commit"] = async () => await interf.Commit(input.Remove(0, parameters[0].Length + parameters[1].Length + parameters[2].Length + 3), parameters[1], parameters[2]),
                 ["push"] = async () => await interf.Push(),
-                ["branch"] = async () => { if (parameters.Length > 2) { await interf.CreateBranch(parameters[1], int.Parse(parameters[2])); } else { await interf.CreateBranch(parameters[1]); } },
+                ["branch"] = async () => { if (parameters.Length > 1) { if (parameters.Length > 2) { await interf.CreateBranch(parameters[1], int.Parse(parameters[2])); } else { await interf.CreateBranch(parameters[1]); } } else { Console.WriteLine("Current branch:\n" + File.ReadAllText($@"{ path}\.pvc\refs\HEAD")); } },
                 ["help"] = async () => await Task.Run(() => { if (parameters.Length > 1 && help.ContainsKey(parameters[1])) { Console.WriteLine(help[parameters[1]]); } else { foreach (string s in help.Keys.ToArray()) { Console.WriteLine($"{s}{repeatChar(' ', 20 - s.Length)}{help[s]}"); } } }),
                 ["status"] = async () => Console.WriteLine((await interf.GetStatus(parameters.Length > 1 ? parameters[1] : File.ReadAllText($@"{path}\.pvc\refs\HEAD"))).ToString().Replace('_', ' ')),
                 ["log"] = async () => { string[] output = (parameters.Length > 1 ? await interf.Log(int.Parse(parameters[1])) : await interf.Log()); for (int i = 0; i < output.Length; i++) { if (output[i] != null) { Console.WriteLine(output[i]); } } },
                 ["ignore"] = async () => { if (parameters.Length > 1) { await interf.IgnorePaths(input.Remove(0, 6).Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)); } else { Console.WriteLine("Ignored subpaths:"); foreach (string s in interf.IgnoredPaths) { Console.WriteLine(s); } } },
-                ["unignore"] = async () => await interf.UnignorePaths(input.Remove(0, 6).Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
+                ["unignore"] = async () => await interf.UnignorePaths(input.Remove(0, 6).Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)),
+                ["ignoreR"] = async () => await interf.SetIgnoredRegex(input.Remove(0,8))
             };
             string repeatChar(char chr, int num)
             {
@@ -111,7 +113,7 @@ namespace PVCClient
                 void Fail(Exception e)
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"Error: {e.Message}\nLocation: {e.StackTrace.Split('\n')[0]}");
+                    Console.WriteLine($"Error: {e.Message}\nLocation: {e.StackTrace/*}");*/.Remove(e.StackTrace.IndexOf("--- End of"))}");
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     if (help.ContainsKey(parameters[0]))
                     {

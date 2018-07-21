@@ -17,12 +17,12 @@ namespace Pipe.Controllers
         IConfiguration configuration;
         SqlConnection connection;
 
-        public PVCController(IConfiguration configuration, INotifier notifier)
+        public PVCController(IConfiguration configuration)//, INotifier notifier)
         {
             this.configuration = configuration;
             connection = new SqlConnection(configuration.GetConnectionString("Dev"));
             
-            notifier.SendMail();
+            //notifier.SendMail();
         }
 
         class Folder
@@ -213,11 +213,12 @@ namespace Pipe.Controllers
             cmd.Parameters.Clear();
             cmd.Parameters.Add(new SqlParameter("RepositoryID", repoID));
             cmd.Parameters.Add(new SqlParameter("BranchName", branch));
-            cmd.Parameters.Add(new SqlParameter("CommitID", commits[commits.Length -1].GetHashCode()));
+            int[] keys = commitDictionary.Keys.ToArray();
+            cmd.Parameters.Add(new SqlParameter("CommitID", keys[0]));
             int rows = cmd.ExecuteNonQuery();
             if (rows <= 0)
             {
-                cmd.CommandText = "usp_CreateBranch";
+                cmd.CommandText = "usp_AddBranch";
                 cmd.ExecuteNonQuery();
             }
         }
