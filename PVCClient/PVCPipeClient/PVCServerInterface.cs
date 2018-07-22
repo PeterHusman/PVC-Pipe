@@ -44,6 +44,23 @@ namespace PVCPipeClient
             }
         }
 
+
+        public async Task<string> GetCurrentBranch()
+        {
+            return File.ReadAllText($@"{Path}\.pvc\refs\HEAD");
+        }
+
+        public async Task<string[]> GetAllBranches()
+        {
+            string[] temp = Directory.EnumerateFiles($@"{Path}\.pvc\refs\branches").ToArray();
+            for(int i = 0; i < temp.Length; i++)
+            {
+                temp[i] = temp[i].Remove(0, $@"{Path}\.pvc\refs\branches\".Length);
+            }
+            return temp;
+        }
+
+
         async Task<Diff[]> GetDiffs(string left, string right)
         {
             List<Diff> diffs = new List<Diff>();
@@ -51,8 +68,8 @@ namespace PVCPipeClient
             {
                 //Try checking each character of right against left until there is a mismatch. Then maybe recursive call on shortened file?
                 //New strat: For now, trying out comparing lines. Check line against line
-                string[] leftLines = left.Split('\n');
-                string[] rightLines = right.Split('\n');
+                string[] leftLines = left.Split('{');
+                string[] rightLines = right.Split('{');
                 int biggerLength = leftLines.Length > rightLines.Length ? leftLines.Length : rightLines.Length;
                 for (int i = 0; i < biggerLength; i++)
                 {
@@ -571,8 +588,12 @@ namespace PVCPipeClient
             return JsonConvert.DeserializeObject<Commit>(File.ReadAllText($@"{pvcPath}\commits\{id % 100}\{id / 100}"));
         }
 
-        //TODO
-        public async Task<bool> Push()//string branch = "")
+        /// <summary>
+        /// Pushes committed changes.
+        /// </summary>
+        /// <param name="branchToPush">The branch to push. If empty, pushes all branches.</param>
+        /// <returns></returns>
+        public async Task<bool> Push(string branchToPush = "")
         {
 
             if (await UncommittedChanges())
@@ -583,9 +604,23 @@ namespace PVCPipeClient
             string path2 = Path + @"\.pvc\tempRepoClone";
             await Clone(path2, origin, true, "");
             bool allValid = true;
-            foreach (string path in Directory.EnumerateFiles($@"{Path}\.pvc\refs\branches"))
+            if (branchToPush == "")
             {
-                string branchCheck = path.Remove(0, Path.Length + 19);
+                foreach (string path in Directory.EnumerateFiles($@"{Path}\.pvc\refs\branches"))
+                {
+                    if (!await checkValid(path.Remove(0, Path.Length + 19)))
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                await checkValid(branchToPush);
+            }
+
+            async Task<bool> checkValid(string branchCheck)
+            {
                 int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branchCheck}"));
                 if (File.Exists($@"{path2}\refs\branches\{branchCheck}"))
                 {
@@ -593,16 +628,27 @@ namespace PVCPipeClient
                     if (CommonAncestor(branch1, branch2, Path + @"\.pvc", path2) == branch2)
                     {
                         allValid = false;
-                        break;
+                        return false;
                     }
                 }
+                return true;
             }
 
             if (allValid)
             {
-                foreach (string path in Directory.EnumerateFiles($@"{Path}\.pvc\refs\branches"))
+                if (branchToPush == "")
                 {
-                    string branchCheck = path.Remove(0, Path.Length + 19);
+                    foreach (string path in Directory.EnumerateFiles($@"{Path}\.pvc\refs\branches"))
+                    {
+                        await PushBranch(path.Remove(0, Path.Length + 19));
+                    }
+                }
+                else
+                {
+                    await PushBranch(branchToPush);
+                }
+                async Task PushBranch(string branchCheck)
+                {
                     int branch1 = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branchCheck}"));
                     int commonAncestor;
                     if (File.Exists($@"{path2}\refs\branches\{branchCheck}"))
@@ -614,7 +660,7 @@ namespace PVCPipeClient
                     {
                         commonAncestor = 0;
                     }
-                    int commit = int.Parse(File.ReadAllText(path));
+                    int commit = int.Parse(File.ReadAllText($@"{Path}\.pvc\refs\branches\{branchCheck}"));
                     Dictionary<int, Commit> commits = new Dictionary<int, Commit>();
                     while (commit != commonAncestor)
                     {
