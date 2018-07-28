@@ -53,7 +53,7 @@ namespace PVCPipeClient
         public async Task<string[]> GetAllBranches()
         {
             string[] temp = Directory.EnumerateFiles($@"{Path}\.pvc\refs\branches").ToArray();
-            for(int i = 0; i < temp.Length; i++)
+            for (int i = 0; i < temp.Length; i++)
             {
                 temp[i] = temp[i].Remove(0, $@"{Path}\.pvc\refs\branches\".Length);
             }
@@ -70,22 +70,41 @@ namespace PVCPipeClient
                 //New strat: For now, trying out comparing lines. Check line against line
                 string[] leftLines = left.Split('{');
                 string[] rightLines = right.Split('{');
-                int biggerLength = leftLines.Length > rightLines.Length ? leftLines.Length : rightLines.Length;
-                for (int i = 0; i < biggerLength; i++)
+                for (int i = 1; i < leftLines.Length; i++)
+                {
+                    leftLines[i] = '{' + leftLines[i];
+                }
+                for (int i = 1; i < rightLines.Length; i++)
+                {
+                    rightLines[i] = '{' + rightLines[i];
+                }
+                int loopLength = leftLines.Length > rightLines.Length ? leftLines.Length : rightLines.Length;
+                for (int i = 0; i < loopLength; i++)
                 {
                     string strLeft = i < leftLines.Length ? leftLines[i] : null;
                     string strRight = i < rightLines.Length ? rightLines[i] : null;
                     if (strLeft != strRight)
                     {
-                        diffs.Add(new Diff(cumulativeLength(leftLines, i), leftLines[i].Length, i < rightLines.Length ? rightLines[i] : ""));
+                        if (strLeft == null)
+                        {
+                            diffs.Add(new Diff(cumulativeLength(rightLines, leftLines.Length) + cumulativeLength(rightLines, i, leftLines.Length), 0, strRight));
+                        }
+                        else if (strRight == null)
+                        {
+                            diffs.Add(new Diff(cumulativeLength(rightLines, i), leftLines[i].Length, ""));
+                        }
+                        else
+                        {
+                            diffs.Add(new Diff(cumulativeLength(rightLines, i), leftLines[i].Length, strRight));
+                        }
                     }
                 }
-                int cumulativeLength(string[] array, int numOfItemsToSum)
+                int cumulativeLength(string[] array, int endingIndexPlusOne, int startingIndex = 0)
                 {
                     int cumLen = 0;
-                    for (int i = 0; i < numOfItemsToSum; i++)
+                    for (int i = startingIndex; i < endingIndexPlusOne; i++)
                     {
-                        cumLen += array[i].Length + 1;
+                        cumLen += array[i].Length;
                     }
                     return cumLen;
                 }
@@ -95,9 +114,9 @@ namespace PVCPipeClient
 
         string MergeDiffs(string left, Diff[] diffs)
         {
-            for (int i = diffs.Length - 1; i >= 0; i--)
+            for (int i = 0; i < diffs.Length; i++)
             {
-                left = left.Remove(diffs[0].Position, diffs[0].NumberToRemove).Insert(diffs[0].Position, diffs[0].ContentToAdd);
+                left = left.Remove(diffs[i].Position, diffs[i].NumberToRemove).Insert(diffs[i].Position, diffs[i].ContentToAdd);
             }
             return left;
         }
@@ -311,7 +330,7 @@ namespace PVCPipeClient
 
         public async Task<bool> Checkout(string branch)
         {
-            if(!File.Exists($@"{Path}\.pvc\refs\branches\{branch}"))
+            if (!File.Exists($@"{Path}\.pvc\refs\branches\{branch}"))
             {
                 return false;
             }
@@ -321,7 +340,7 @@ namespace PVCPipeClient
                 {
                     if (path != Path + @"\.pvc")
                     {
-                        Directory.Delete(path,true);
+                        Directory.Delete(path, true);
                     }
                 }
                 foreach (string path in Directory.EnumerateFiles(Path))
