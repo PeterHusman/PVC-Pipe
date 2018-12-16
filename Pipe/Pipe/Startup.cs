@@ -61,13 +61,15 @@ namespace Pipe
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddCors(co => co.AddPolicy("openCORS", builder => { builder.AllowAnyHeader(); builder.AllowAnyMethod(); builder.AllowAnyOrigin(); }));
             services.AddMvc();
 
-//#if USESMS
-//            services.AddTransient<INotifier, SMSNotifier>((i) => new SMSNotifier("123-555-1212"));
-//#else
-//            services.AddTransient<INotifier, EmailNotifier>(((i) => new EmailNotifier("peterAdmin@pipe.com")));
-//#endif
+
+            //#if USESMS
+            //            services.AddTransient<INotifier, SMSNotifier>((i) => new SMSNotifier("123-555-1212"));
+            //#else
+            //            services.AddTransient<INotifier, EmailNotifier>(((i) => new EmailNotifier("peterAdmin@pipe.com")));
+            //#endif
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -78,7 +80,10 @@ namespace Pipe
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseMvc();
+            app.UseStaticFiles();
+
+            app.UseMvc()
+               .UseCors("openCORS");
         }
     }
 }

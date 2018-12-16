@@ -1,7 +1,0 @@
-{
-    "Author": "me",
-    "Committer": "ME!",
-    "CommitID": hash,
-    "ParentID": parent's hash,
-    "Diffs": "SOMEHOWFIGUREOUTADIFFFORMAT"
-}

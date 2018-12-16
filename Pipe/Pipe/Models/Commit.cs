@@ -17,13 +17,16 @@ namespace Pipe.Models
 
         public string Committer { get; set; }
 
-        public Commit(string diffs, string message, string author, string committer, int parent)
+        public DateTime DateAndTime { get; set; }
+
+        public Commit(string diffs, string message, string author, string committer, int parent, DateTime dateTime)
         {
             Diffs = diffs;
             Message = message;
             Author = author;
             Committer = committer;
             Parent = parent;
+            DateAndTime = dateTime;
         }
     }
 }

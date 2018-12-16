@@ -9,7 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="wwwroot\" />
+    <Compile Remove="TempFiles\**" />
+    <Content Remove="TempFiles\**" />
+    <EmbeddedResource Remove="TempFiles\**" />
+    <None Remove="TempFiles\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,6 +21,10 @@
 
   <ItemGroup>
     <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="2.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\Downloads\" />
   </ItemGroup>
 
 </Project>
