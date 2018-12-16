@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>ACE in Action</title>
+    <script src="../ace-builds-master/src-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../Scripts/aceTest.js"></script>
+    
+    <style type="text/css" media="screen">
+        .editorStyle { 
+            position: absolute;
+            top: 50%;
+            width: 50%;
+            height: 50%
+        };
+    </style>
+</head>
+<body>
+
+
+<div id="editorDiv">function foo(items) {
+    var x = "All this is syntax highlighted";
+    return x;
+}
+</div>
+
+<button id="aceTestButton" onclick="javascript:setTextSample('csharp');">C# test</button>
+<button id="aceTestButton" onclick="javascript:setTextSample('sql');">SQL test</button>
+    
+</body>
+</html>

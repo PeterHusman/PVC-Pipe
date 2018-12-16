@@ -1,0 +1,35 @@
+<html>
+    <head>
+        <script src="../Scripts/repo.js" async></script>
+        <style type="text/css" media="screen">
+        #fileContents
+        {
+            font-family: monospace;
+        };
+        </style>
+        <script src="../ace-builds-master/src-noconflict/ace.js" async type="text/javascript" charset="utf-8"></script>
+    </head>
+    <body>
+        <h1 id="repoName"></h1>
+        <form>
+            <input type="button" id="returnHomeButton" value="Home"></input>
+            <p>Branches:</p>
+            <div id="branchesDiv">
+
+            </div>
+            <p>Commits:</p>
+            <div id="commitsDiv">
+
+            </div>
+            <p>File Structure:</p>
+            <p id="filesPath"></p>
+            <div id="filesDiv">
+            </div>
+            <p>Download</p>
+            <input id="downloadButton" type="button" value="Download As Zip" onclick="getZip()" disabled></input>
+            <h4 id="fileContentsLabel"></h4>
+            <p id="fileContents"></p>
+            <div id="editorDiv"></div>
+        </form>
+    </body>
+</html>

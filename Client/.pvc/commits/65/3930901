@@ -1,0 +1,1 @@
+{"Diffs":"[]","Parent":-1872725247,"Message":"8/6/2018 5:38:37 PM: Started work on user authentication, database side. Got hung up on issue with conversions, guids, salting and hashing in SQL. Next, finish it.","Author":"Peter","Committer":"Peter"}
